@@ -2,18 +2,6 @@ import torch
 from torch.utils.data import Dataset
 
 
-class dataset(Dataset):
-
-    def __init__(self, numOfTriple):
-        self.tripleList = torch.LongTensor(range(numOfTriple))
-        self.numOfTriple = numOfTriple
-
-    def __len__(self):
-        return self.numOfTriple
-
-    def __getitem__(self, item):
-        return self.tripleList[item]
-
 
 class generateBatches:
 

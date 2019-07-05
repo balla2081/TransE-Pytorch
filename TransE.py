@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 class TransE(nn.Module):
 
-    def __init__(self, numOfEntity, numOfRelation, entityDimension, relationDimension, norm):
+    def __init__(self, numOfEntity, numOfRelation, entityDimension, relationDimension, norm, device):
         super(TransE, self).__init__()
 
         self.numOfEntity = numOfEntity
@@ -25,25 +25,27 @@ class TransE(nn.Module):
         self.entityEmbeddings = nn.Embedding(self.numOfEntity, self.entityDimension)
         self.entityEmbeddings.weight.data = torch.FloatTensor(self.numOfEntity, self.entityDimension).uniform_(-6./sqrtE, 6./sqrtE)
         self.entityEmbeddings.weight.data = F.normalize(self.entityEmbeddings.weight.data, 2, 1)
+        
+        self.device = device
 
-    def forward(self, positiveBatchHead, positiveBatchRelation, positiveBatchTail, corruptedBatchHead, corruptedBatchRelation, corruptedBatchTail):
+    def forward(self, positiveBatch, corruptedBatch):
         # print positiveBatches
-        pH_embeddings = self.entityEmbeddings(positiveBatchHead)
-        pR_embeddings = self.relationEmbeddings(positiveBatchRelation)
-        pT_embeddings = self.entityEmbeddings(positiveBatchTail)
+        pH_embeddings = self.entityEmbeddings(positiveBatch[0]).to(self.device)
+        pR_embeddings = self.relationEmbeddings(positiveBatch[1]).to(self.device)
+        pT_embeddings = self.entityEmbeddings(positiveBatch[2]).to(self.device)
 
-        nH_embeddings = self.entityEmbeddings(corruptedBatchHead)
-        nR_embeddings = self.relationEmbeddings(corruptedBatchRelation)
-        nT_embeddings = self.entityEmbeddings(corruptedBatchTail)
+        nH_embeddings = self.entityEmbeddings(corruptedBatch[0]).to(self.device)
+        nR_embeddings = self.relationEmbeddings(corruptedBatch[1]).to(self.device)
+        nT_embeddings = self.entityEmbeddings(corruptedBatch[2]).to(self.device)
 
-        pH_embeddings = F.normalize(pH_embeddings, 2, 1)
-        pT_embeddings = F.normalize(pT_embeddings, 2, 1)
-        nH_embeddings = F.normalize(nH_embeddings, 2, 1)
-        nT_embeddings = F.normalize(nT_embeddings, 2, 1)
+        pH_embeddings = F.normalize(pH_embeddings, 2, 1).to(self.device)
+        pT_embeddings = F.normalize(pT_embeddings, 2, 1).to(self.device)
+        nH_embeddings = F.normalize(nH_embeddings, 2, 1).to(self.device)
+        nT_embeddings = F.normalize(nT_embeddings, 2, 1).to(self.device)
 
-        positiveLoss = torch.norm(pH_embeddings + pR_embeddings - pT_embeddings, self.norm, 1)
+        positiveLoss = torch.norm(pH_embeddings + pR_embeddings - pT_embeddings, self.norm, 1).to(self.device)
         # set parameter "1": calculate the "self.norm"-norm of each row
-        negativeLoss = torch.norm(nH_embeddings + nR_embeddings - nT_embeddings, self.norm, 1)
+        negativeLoss = torch.norm(nH_embeddings + nR_embeddings - nT_embeddings, self.norm, 1).to(self.device)
         # the size of negativeLoss: negativeTriples["h"].size()
 
         return torch.cat((positiveLoss, negativeLoss))
