@@ -6,42 +6,39 @@ import torch.nn.functional as F
 
 class TransE(nn.Module):
 
-    def __init__(self, numOfEntity, numOfRelation, entityDimension, relationDimension, margin, norm):
+    def __init__(self, numOfEntity, numOfRelation, entityDimension, relationDimension, norm):
         super(TransE, self).__init__()
 
         self.numOfEntity = numOfEntity
         self.numOfRelation = numOfRelation
         self.entityDimension = entityDimension
         self.relationDimension = relationDimension
-        self.margin = margin
         self.norm = norm
 
         sqrtR = relationDimension**0.5
         sqrtE = entityDimension**0.5
 
-        self.relation_embeddings = nn.Embedding(self.numOfRelation, self.relationDimension)
-        self.relation_embeddings.weight.data = torch.FloatTensor(self.numOfRelation, self.relationDimension).uniform_(-6./sqrtR, 6./sqrtR)
-        self.relation_embeddings.weight.data = F.normalize(self.relation_embeddings.weight.data, 2, 1)
+        self.relationEmbeddings = nn.Embedding(self.numOfRelation, self.relationDimension)
+        self.relationEmbeddings.weight.data = torch.FloatTensor(self.numOfRelation, self.relationDimension).uniform_(-6./sqrtR, 6./sqrtR)
+        self.relationEmbeddings.weight.data = F.normalize(self.relationEmbeddings.weight.data, 2, 1)
 
-        self.entity_embeddings = nn.Embedding(self.numOfEntity, self.entityDimension)
-        self.entity_embeddings.weight.data = torch.FloatTensor(self.numOfEntity, self.entityDimension).uniform_(-6./sqrtE, 6./sqrtE)
-        self.entity_embeddings.weight.data = F.normalize(self.entity_embeddings.weight.data, 2, 1)
+        self.entityEmbeddings = nn.Embedding(self.numOfEntity, self.entityDimension)
+        self.entityEmbeddings.weight.data = torch.FloatTensor(self.numOfEntity, self.entityDimension).uniform_(-6./sqrtE, 6./sqrtE)
+        self.entityEmbeddings.weight.data = F.normalize(self.entityEmbeddings.weight.data, 2, 1)
 
     def forward(self, positiveBatchHead, positiveBatchRelation, positiveBatchTail, corruptedBatchHead, corruptedBatchRelation, corruptedBatchTail):
         # print positiveBatches
-        pH_embeddings = self.entity_embeddings(positiveBatchHead)
-        pR_embeddings = self.relation_embeddings(positiveBatchRelation)
-        pT_embeddings = self.entity_embeddings(positiveBatchTail)
+        pH_embeddings = self.entityEmbeddings(positiveBatchHead)
+        pR_embeddings = self.relationEmbeddings(positiveBatchRelation)
+        pT_embeddings = self.entityEmbeddings(positiveBatchTail)
 
-        nH_embeddings = self.entity_embeddings(corruptedBatchHead)
-        nR_embeddings = self.relation_embeddings(corruptedBatchRelation)
-        nT_embeddings = self.entity_embeddings(corruptedBatchTail)
+        nH_embeddings = self.entityEmbeddings(corruptedBatchHead)
+        nR_embeddings = self.relationEmbeddings(corruptedBatchRelation)
+        nT_embeddings = self.entityEmbeddings(corruptedBatchTail)
 
         pH_embeddings = F.normalize(pH_embeddings, 2, 1)
-        # pR_embeddings = F.normalize(pR_embeddings, 2, 1)
         pT_embeddings = F.normalize(pT_embeddings, 2, 1)
         nH_embeddings = F.normalize(nH_embeddings, 2, 1)
-        # nR_embeddings = F.normalize(nR_embeddings, 2, 1)
         nT_embeddings = F.normalize(nT_embeddings, 2, 1)
 
         positiveLoss = torch.norm(pH_embeddings + pR_embeddings - pT_embeddings, self.norm, 1)
@@ -154,51 +151,5 @@ class TransE(nn.Module):
 
 
 
-
-
-    '''
-    def validate(self, numOfValidateTriple, validateHead, validateRelation, validateTail):
-        validateHeadEmbedding = self.entity_embeddings(validateHead)
-        validateRelationEmbedding = self.relation_embeddings(validateRelation)
-        validateTailEmbedding = self.entity_embeddings(validateTail)
-
-        targetLoss = torch.norm(validateHeadEmbedding + validateRelationEmbedding - validateTailEmbedding, self.norm, 1)
-
-        fMeanRankH = 0
-        fMeanRankT = 0
-
-        for tmpTriple in range(numOfValidateTriple):
-            # print "processing " + str(tmpTriple)
-            tmpHeadEmbedding = validateHeadEmbedding[tmpTriple].repeat(self.numOfEntity, 1)
-            tmpRelationEmbedding = validateRelationEmbedding[tmpTriple].repeat(self.numOfEntity, 1)
-            tmpTailEmbedding = validateTailEmbedding[tmpTriple].repeat(self.numOfEntity, 1)
-
-            tmpTargetLoss = targetLoss[tmpTriple]
-
-            tmpHeadLoss = torch.norm(self.entity_embeddings.weight.data + tmpRelationEmbedding - tmpTailEmbedding, self.norm, 1)
-            tmpTailLoss = torch.norm(tmpHeadEmbedding + tmpRelationEmbedding - self.entity_embeddings.weight.data, self.norm, 1)
-
-            tmpFMeanRankH = 1
-            tmpFMeanRankT = 1
-
-            for i in range(self.numOfEntity):
-                if tmpTargetLoss > tmpHeadLoss[i]:
-                    tmpFMeanRankH += 1
-                    if i in self.headRelation2Tail.keys():
-                        if validateRelation[tmpTriple].item() in self.headRelation2Tail[i].keys():
-                            if validateTail[tmpTriple].item() in self.headRelation2Tail[i][validateRelation[tmpTriple].item()]:
-                                tmpFMeanRankH -= 1
-                if tmpTargetLoss > tmpTailLoss[i]:
-                    tmpFMeanRankT += 1
-                    if validateHead[tmpTriple].item() in self.headRelation2Tail.keys():
-                        if validateRelation[tmpTriple].item() in self.headRelation2Tail[validateHead[tmpTriple].item()].keys():
-                            if i in self.headRelation2Tail[validateHead[tmpTriple].item()][validateRelation[tmpTriple].item()]:
-                                tmpFMeanRankT -= 1
-
-            fMeanRankH += tmpFMeanRankH
-            fMeanRankT += tmpFMeanRankT
-
-        return (fMeanRankH + fMeanRankT)/(2 * numOfValidateTriple)
-        '''
 
 

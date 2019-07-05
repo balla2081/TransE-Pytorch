@@ -28,33 +28,39 @@ class generateBatches:
 
         self.generatePosAndCorBatch()
 
-    def generatePosAndCorBatch(self):
-        self.positiveBatch["h"] = []
-        self.positiveBatch["r"] = []
-        self.positiveBatch["t"] = []
+    def generatePosAndCorBatch(self):                
+        self.positiveBatch["h"] = self.train2id["h"][self.batch]
+        self.positiveBatch["r"] = self.train2id["r"][self.batch]
+        self.positiveBatch["t"] = self.train2id["t"][self.batch]
+        
         self.corruptedBatch["h"] = []
         self.corruptedBatch["r"] = []
         self.corruptedBatch["t"] = []
-        for tripleId in self.batch:
-            tmpHead = self.train2id["h"][tripleId]
-            tmpRelation = self.train2id["r"][tripleId]
-            tmpTail = self.train2id["t"][tripleId]
-            self.positiveBatch["h"].append(tmpHead)
-            self.positiveBatch["r"].append(tmpRelation)
-            self.positiveBatch["t"].append(tmpTail)
+        
+        for head, rel, tail in zip(self.positiveBatch["h"], self.positiveBatch["r"], self.positiveBatch["t"]):
+            head = head.item()
+            rel = rel.item()
+            tail = tail.item()
+            
             if torch.rand(1).item() >= 0.5:
-                tmpCorruptedHead = torch.FloatTensor(1).uniform_(0, self.numOfEntity).long().item()
-                while tmpCorruptedHead in self.tailRelation2Head[tmpTail][tmpRelation] or tmpCorruptedHead == tmpHead:
-                    tmpCorruptedHead = torch.FloatTensor(1).uniform_(0, self.numOfEntity).long().item()
-                tmpHead = tmpCorruptedHead
+                not_list = self.tailRelation2Head[tail][rel].union(set([head]))
+                while True:
+                    CorruptedHead = torch.FloatTensor(1).uniform_(0, self.numOfEntity).long().item()
+                    if CorruptedHead not in not_list:
+                        head = CorruptedHead
+                        break
             else:
-                tmpCorruptedTail = torch.FloatTensor(1).uniform_(0, self.numOfEntity).long().item()
-                while tmpCorruptedTail in self.headRelation2Tail[tmpHead][tmpRelation] or tmpCorruptedTail == tmpTail:
-                    tmpCorruptedTail = torch.FloatTensor(1).uniform_(0, self.numOfEntity).long().item()
-                tmpTail = tmpCorruptedTail
-            self.corruptedBatch["h"].append(tmpHead)
-            self.corruptedBatch["r"].append(tmpRelation)
-            self.corruptedBatch["t"].append(tmpTail)
+                not_list = self.headRelation2Tail[head][rel].union(set([tail]))
+                while True:
+                    CorruptedTail = torch.FloatTensor(1).uniform_(0, self.numOfEntity).long().item()
+                    if CorruptedTail not in not_list:
+                        tail = CorruptedTail
+                        break
+            self.corruptedBatch["h"].append(head)
+            self.corruptedBatch["r"].append(rel)
+            self.corruptedBatch["t"].append(tail)        
+                    
+        
         for aKey in self.positiveBatch:
             self.positiveBatch[aKey] = torch.LongTensor(self.positiveBatch[aKey])
         for aKey in self.corruptedBatch:

@@ -2,19 +2,24 @@ import re
 import torch
 import logging
 import numpy as np
-from collections import defaultdict
+from collections import Counter
 import numpy as np
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
 
-# it is okay for small dataset:)
+def normalize(d, target=1.0):
+    raw = sum(d.values())
+    factor = target/raw
+    return {key:value*factor for key,value in d.items()}
+
+# if dataset is big enoughy, use this reading_library
 class readData:
-    def __init__(self, inAdd, train2id, headRelation2Tail, tailRelation2Head, entity2id, id2entity, relation2id, id2relation, nums):
+    def __init__(self, inAdd, train2id, entity2id, id2entity, relation2id, id2relation, nums):
         self.inAdd = inAdd
         self.train2id = train2id
-        self.headRelation2Tail = headRelation2Tail
-        self.tailRelation2Head = tailRelation2Head
+        self.headCounter = {}
+        self.tailCounter = {}
         self.nums = nums
         self.entity2id = entity2id
         self.id2entity = id2entity
@@ -36,27 +41,30 @@ class readData:
         self.nums[0] = self.numOfTriple
         self.nums[1] = self.numOfEntity
         self.nums[2] = self.numOfRelation
-        
 
 
 
 
     def readTrain2id(self):
         logging.info ("-----Reading train2id.txt from " + self.inAdd + "/-----")
-        inputData = np.load(self.inAdd + "/train_triples.npy")
-        logging.info(inputData.shape)
+        inputData = np.load(self.inAdd + "/train_triples.npy").T
         logging.info("Data loading complete")
         
-        for count, (head, tail, rel) in enumerate(inputData):
-            self.headRelation2Tail[head][rel].add(tail)
-            self.tailRelation2Head[tail][rel].add(head)
-        logging.info("making count dict complete")
-        
-        inputData = inputData.T
         self.numOfTriple = len(inputData[0])
         self.train2id["h"] = torch.tensor(inputData[0])
         self.train2id["r"] = torch.tensor(inputData[2])
         self.train2id["t"] = torch.tensor(inputData[1])
+        
+
+        
+        self.headCounter = Counter(inputData[0])
+        self.tailCounter = Counter(inputData[1])
+        
+        self.headCounter = {k:np.power(v, 0.75) for k,v in self.headCounter.items()}
+        self.headCounter = normalize(self.headCounter)
+        self.tailCounter = {k:np.power(v, 0.75) for k,v in self.tailCounter.items()}
+        self.tailCounter = normalize(self.tailCounter)
+     
         
         return
 
