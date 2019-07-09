@@ -32,36 +32,34 @@ class bigDataSet(Dataset):
         return self.numOfTriple
 
     def __getitem__(self, item):
-        return (self.trainTriples["h"][item], self.trainTriples["r"][item], self.trainTriples["t"][item])
+        return self.trainTriples[item]
 
 
     def readTrainTriples(self):
         logging.info ("-----Reading train tiples from " + self.inDir + "/-----")
-        inputData = np.load(self.inDir + "/train_triples.npy").T
+        inputData = np.load(self.inDir + "/train_triples.npy")
         logging.info(inputData.shape)
         logging.info("Data loading complete")
         
         
-        self.numOfTriple = len(inputData[0])
-        self.trainTriples = {}
-        self.trainTriples["h"] = torch.tensor(inputData[0])
-        self.trainTriples["r"] = torch.tensor(inputData[2])
-        self.trainTriples["t"] = torch.tensor(inputData[1])
+        self.numOfTriple = len(inputData)
+        self.trainTriples = torch.LongTensor(inputData)
         
-
-        
+        inputData = inputData.T
         headCounter = Counter(inputData[0])
         tailCounter = Counter(inputData[1])
         
+        logging.info("making head Dist")
         headDistributionDict = {k:np.power(v, 0.75) for k,v in headCounter.items()}
         headDistributionDict = normalize(headDistributionDict)
-        self.headIndicies = list(headDistributionDict.keys())
-        self.headDistribution = list(headDistributionDict.values())
+        self.headIndicies = torch.LongTensor(list(headDistributionDict.keys()))
+        self.headDistribution = torch.Tensor(list(headDistributionDict.values()))
         
+        logging.info("making tail Dist")
         tailDistributionDict = {k:np.power(v, 0.75) for k,v in tailCounter.items()}
         tailDistributionDict = normalize(tailDistributionDict)
-        self.tailIndicies = list(tailDistributionDict.keys())
-        self.tailDistribution = list(tailDistributionDict.values())
+        self.tailIndicies = torch.LongTensor(list(tailDistributionDict.keys()))
+        self.tailDistribution = torch.Tensor(list(tailDistributionDict.values()))
         
         return
 
@@ -84,19 +82,15 @@ class bigDataSet(Dataset):
     
     def generateCorruptedBatch(self, batch):
         corruptedBatch = {}
+        logging.info('making rand array')
+        batch_length = len(batch)
         
-        batch_length = len(batch[0])
-        rand_array = torch.ge(torch.rand(batch_length), 0.5)
-        
-        corrupted_heads = np.random.choice(self.headIndicies, batch_length, p=self.headDistribution, replace=True)
-        corrupted_tails = np.random.choice(self.tailIndicies, batch_length, p=self.tailDistribution, replace=True)
-        
-        corruptedBatch["h"] = [corrupted_heads[i] if rand_array[i] == 1 else head.item() for i, head in enumerate(batch[0])]
-        corruptedBatch["r"] = batch[1]
-        corruptedBatch["t"] = [corrupted_tails[i] if rand_array[i] == 0 else tail.item() for i, tail in enumerate(batch[2])]
-            
-        for aKey in corruptedBatch:
-            corruptedBatch[aKey] = torch.LongTensor(corruptedBatch[aKey])
-                
-        return [corruptedBatch['h'], corruptedBatch['r'], corruptedBatch['t']]
-        
+        logging.info('making corrupted haeds and tails')
+        corrputed_heads_index = torch.multinomial(self.headDistribution, batch_length, replacement=True)
+        corrupted_heads = self.headIndicies[corrputed_heads_index].view((-1,1))
+        corrputed_tails_index = torch.multinomial(self.tailDistribution, batch_length, replacement=True)
+        corrupted_tails = self.tailIndicies[corrputed_tails_index].view((-1,1))
+        logging.info('random complete')
+        corruptedBatch = torch.cat((torch.cat((corrupted_heads,batch[:,1:]), 1), torch.cat((batch[:,:1],corrupted_tails,batch[:,2:]), 1)))
+        print(corruptedBatch.size())
+        return torch.LongTensor(corruptedBatch)

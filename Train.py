@@ -28,7 +28,7 @@ class trainTransE:
         self.preOrNot = preOrNot
         self.entityDimension = 100
         self.relationDimension = 100
-        self.sizeOfBatches = 1000
+        self.sizeOfBatches = 10000
         self.numOfEpochs = 100
         self.outputFreq = 5
         self.learningRate = 0.01  # 0.01
@@ -83,29 +83,41 @@ class trainTransE:
             
         logging.info('Model initialize')
         transE = TransE(self.dataSet.numOfEntity, self.dataSet.numOfRelation, self.entityDimension, self.relationDimension, self.norm, self.device)
-
+        logging.info("embeding matrix initialize complete")
         if self.preOrNot:
             self.preRead(transE)
             
         criterion = nn.MarginRankingLoss(self.margin, False).to(self.device)
         optimizer = optim.SGD(transE.parameters(), lr=self.learningRate, weight_decay=self.weight_decay)
 
-        dataLoader = DataLoader(dataset=self.dataSet, batch_size=self.sizeOfBatches, shuffle=True)
+        dataLoader = DataLoader(dataset=self.dataSet, batch_size=self.sizeOfBatches, shuffle=True, num_workers=4, pin_memory=True)
  
         logging.info('training start')
         for epoch in range(self.numOfEpochs):
             epochLoss = 0
+            count = 0
             for batch in dataLoader:
+                logging.info("making corrupted_batch")
                 corruptedBatch = self.dataSet.generateCorruptedBatch(batch)
                 optimizer.zero_grad()
-                output = transE(batch, corruptedBatch).to(self.device)
-                positiveLoss = output.view(2, -1)[0].to(self.device)
-                negativeLoss = output.view(2, -1)[1].to(self.device)
+                logging.info("forawrd calculation")
+                positiveLoss, negativeLoss = transE(batch, corruptedBatch)
+                logging.info("seperate results")
+                logging.info("tmp tensor")
+                positiveLoss = positiveLoss.to(self.device)
+                negativeLoss = negativeLoss.to(self.device)
                 tmpTensor = torch.tensor([-1], dtype=torch.float).to(self.device)
-                batchLoss = criterion(positiveLoss, negativeLoss, tmpTensor)
+                logging.info("calculate loss")
+                batchLoss = criterion(positiveLoss, negativeLoss, tmpTensor).to(self.device)
+                logging.info("backward")
                 batchLoss.backward()
+                logging.info("optimizer step")
                 optimizer.step()
                 epochLoss += batchLoss
+                count += 1
+                logging.info("step_ended")
+                if count%100 == 0:
+                    logging.info ("epoch " + str(epoch) + + "-" + str(count) + ": , loss: " + str(epochLoss))
 
             logging.info ("epoch " + str(epoch) + ": , loss: " + str(epochLoss))
 

@@ -30,13 +30,13 @@ class TransE(nn.Module):
 
     def forward(self, positiveBatch, corruptedBatch):
         # print positiveBatches
-        pH_embeddings = self.entityEmbeddings(positiveBatch[0]).to(self.device)
-        pR_embeddings = self.relationEmbeddings(positiveBatch[1]).to(self.device)
-        pT_embeddings = self.entityEmbeddings(positiveBatch[2]).to(self.device)
+        pH_embeddings = self.entityEmbeddings(positiveBatch[:,0]).to(self.device)
+        pT_embeddings = self.entityEmbeddings(positiveBatch[:,1]).to(self.device)
+        pR_embeddings = self.relationEmbeddings(positiveBatch[:,2]).to(self.device)
 
-        nH_embeddings = self.entityEmbeddings(corruptedBatch[0]).to(self.device)
-        nR_embeddings = self.relationEmbeddings(corruptedBatch[1]).to(self.device)
-        nT_embeddings = self.entityEmbeddings(corruptedBatch[2]).to(self.device)
+        nH_embeddings = self.entityEmbeddings(corruptedBatch[:,0]).to(self.device)
+        nT_embeddings = self.entityEmbeddings(corruptedBatch[:,1]).to(self.device)
+        nR_embeddings = self.relationEmbeddings(corruptedBatch[:,2]).to(self.device)
 
         pH_embeddings = F.normalize(pH_embeddings, 2, 1).to(self.device)
         pT_embeddings = F.normalize(pT_embeddings, 2, 1).to(self.device)
@@ -47,8 +47,7 @@ class TransE(nn.Module):
         # set parameter "1": calculate the "self.norm"-norm of each row
         negativeLoss = torch.norm(nH_embeddings + nR_embeddings - nT_embeddings, self.norm, 1).to(self.device)
         # the size of negativeLoss: negativeTriples["h"].size()
-
-        return torch.cat((positiveLoss, negativeLoss))
+        return (torch.cat((positiveLoss, positiveLoss)), negativeLoss)
         # the size of returned tensor: positiveLoss.size()
 
     def fastValidate(self, validateHead, validateRelation, validateTail):

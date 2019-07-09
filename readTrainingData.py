@@ -23,7 +23,7 @@ class smallDataSet(Dataset):
         return self.numOfTriple
 
     def __getitem__(self, item):
-        return (self.trainTriples["h"][item], self.trainTriples["r"][item], self.trainTriples["t"][item])
+        return self.trainTriples[item]
     
     def readTrainTriples(self):
         logging.info ("-----Reading train tiples from " + self.inDir + "/-----")
@@ -36,12 +36,9 @@ class smallDataSet(Dataset):
             self.tailRelation2Head[tail][rel].add(head)
         logging.info("Making count dict complete")
         
-        inputData = inputData.T
-        self.numOfTriple = len(inputData[0])
-        self.trainTriples = {}
-        self.trainTriples["h"] = torch.tensor(inputData[0])
-        self.trainTriples["r"] = torch.tensor(inputData[2])
-        self.trainTriples["t"] = torch.tensor(inputData[1])
+        self.numOfTriple = len(inputData)
+        self.trainTriples = torch.LongTensor(inputData)
+
     
 
     def readEntityNumber(self):
@@ -62,9 +59,8 @@ class smallDataSet(Dataset):
         return 
     
     def generateCorruptedBatch(self, batch):
-        corruptedBatch = {'h': [], 'r':[], 't':[]}
-        
-        for head, rel, tail in zip(*batch):
+        corruptedBatch = []
+        for head, tail, rel in batch:
             head = head.item()
             rel = rel.item()
             tail = tail.item()
@@ -84,14 +80,12 @@ class smallDataSet(Dataset):
                         tail = CorruptedTail
                         break
                         
-            corruptedBatch['h'].append(head)
-            corruptedBatch['r'].append(rel)
-            corruptedBatch['t'].append(tail)
+            corruptedBatch.append([head, tail, rel])
             
-        for aKey in corruptedBatch:
-            corruptedBatch[aKey] = torch.LongTensor(corruptedBatch[aKey])
+
+        corruptedBatch = torch.LongTensor(corruptedBatch)
                 
-        return [corruptedBatch['h'], corruptedBatch['r'], corruptedBatch['t']]
+        return corruptedBatch
         
             
         
